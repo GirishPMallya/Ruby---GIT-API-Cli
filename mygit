@@ -1,0 +1,206 @@
+#!/usr/bin/env ruby
+
+require 'octokit'
+
+require 'json'
+
+require 'io/console'
+
+
+=begin
+if(!File.exist?('login.txt'))
+	file = File.open("login.txt", "w")
+	puts "Enter your github username"
+
+	login = gets.chomp
+	file.puts login
+	puts "Enter your password"
+
+	password = STDIN.noecho(&:gets).chomp
+	file.puts password
+	file.close
+
+end 
+
+line_num=0
+text=File.open('login.txt').read
+text.gsub!(/\r\n?/, "\n")
+
+text.each_line do |line|
+	if line_num==0 
+		login=line
+	else
+		password=line
+	end
+line_num +=1
+end
+text.close
+login=login.chomp
+password=password.chomp
+=end
+
+
+client = Octokit::Client.new(:login => 'GirishPMallya', :password => 'testapipwtesttest')
+myCase = ARGV[0]
+
+
+$WorkingB = 'def'
+$baseB= 'master'
+$DirToCh =''
+
+case myCase
+	when "create"
+	system "git clone #{ARGV[1]}"
+	z= `ls -td -- */ | head -n 1 | cut -d'/' -f1`
+	z=z.chomp
+	$DirToCh = "#{z}"
+	
+	Dir.chdir "#{z}"
+
+	newstr = "GirishPMallya/"+"#{z}"
+	
+	File.open("repo.txt", 'w') { |file| file.write(newstr) }
+	puts newstr
+	system "ls"
+	system "git init"
+	system "git pull"
+	$WorkingB = ARGV[2]
+	File.open("Direx.txt", 'w') { |file| file.write("#{$WorkingB}") }
+	
+	puts "Creating branch #{ARGV[2]}"
+	system "git branch #{ARGV[2]}"
+	system "git checkout #{ARGV[2]}"
+
+	when "prepare"
+
+	if ARGV[1] != nil
+	$baseB= ARGV[1]
+	
+	
+	File.open("BASE.txt", 'w') { |file| file.write("#{$baseB}") }
+	
+	else
+	
+	if(File.exist?('BASE.txt'))
+		file = File.open("BASE.txt")
+		$baseB = file.read
+	else
+		puts "ERROR NEED A BASE BRANCH"
+		exit
+	end
+	end
+	
+	#File.open("BASE.txt", 'w') { |file| file.write("#{$baseB}") }
+		
+	#puts "#{$DirToCh}"
+		
+	system "git rebase #{$baseB}"
+
+	file = File.open("Direx.txt")
+	file_data = file.read
+	puts "#{file_data}"
+	#system "git push -u origin #{file_data}"
+
+	when "request"
+	
+	file = File.open("repo.txt")
+	file_data = file.read
+
+	file1 = File.open("BASE.txt")
+	baseBrc = file1.read
+
+	file2 = File.open("Direx.txt")
+	wrkBrc = file2.read
+	pullr=client.create_pull_request(file_data, baseBrc, wrkBrc,
+  "From Girish's App", "Pull Request body")
+
+	
+	#puts pullr.number
+
+	reqrev=client.request_pull_request_review(file_data, pullr.number , reviewers: [ARGV[1]])
+	
+	puts "Pull request created and review requested by #{ARGV[1]}"
+
+	#puts reqrev.id
+
+	#puts pullr.number
+
+	comparison = client.compare(file_data, 'master' ,'newfeature', options = {})
+	tojson=Hash.new
+	q=0
+	comparison.files.each do |file|
+	arr=[]	
+
+	file.each do |f|
+		arr.push(f)
+		
+	end
+	tojson[q] = arr
+	q=q+1
+	end	
+
+	i=0
+	
+	#puts comparison
+
+	
+		
+	File.open("temp.json","w") do |f|
+  	f.write(tojson.to_json)
+	end
+
+	
+	File.open("pullr.txt", 'w') { |file| file.write("#{pullr.number}") }
+
+	
+	File.open("reqrev.txt", 'w') { |file| file.write("#{reqrev.id}") }	
+
+	
+	
+	when "finish"
+
+	filer = File.open("repo.txt")
+	file_datar = filer.read
+	
+
+	file4 = File.open("pullr.txt")
+	pullrno = file4.read
+	
+	file5 = File.open("reqrev.txt")
+	reqrevno = file5.read
+
+	filebase = File.open("BASE.txt")
+	basebrnch = filebase.read
+
+	#tempo=client.pull_request_review_requests(file_datar, pullrno)
+
+	revs=client.pull_request_reviews(file_datar, pullrno)
+	
+	if revs.empty?
+		puts "Review not done yet"
+		exit
+	else
+	
+	review_ix= revs.length - 1
+	status=client.pull_request_review(file_datar, pullrno, revs[review_ix].id)
+
+	puts "review status is"
+	
+	puts status.state
+
+	end
+	
+	if status.state == 'APPROVED' 
+		puts "your review is approved"
+		system "git add ."
+		system "git commit -m 'from my app'"
+		system "git merge --squash #{basebrnch}"
+
+	end
+
+	
+	
+	
+
+	
+end
